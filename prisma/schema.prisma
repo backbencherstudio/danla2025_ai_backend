@@ -13,6 +13,82 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+}
+
+// nutrition and meal tracking enums
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum SourceType {
+  APP_RECIPE
+  RESTAURANT
+  CUSTOM
+}
+
+enum RestrictionType {
+  INTOLERANCE
+  DISLIKE
+}
+
+enum MoodLevel {
+  LOW
+  NEUTRAL
+  HIGH
+}
+
+enum EnergyLevel {
+  LOW
+  NEUTRAL
+  HIGH
+}
+
+enum DigestionLevel {
+  POOR
+  OK
+  GOOD
+}
+
+enum AllergyType {
+  PEANUTS
+  TREE_NUTS
+  DAIRY
+  EGGS
+  SOY
+  WHEAT_GLUTEN
+  FISH
+}
+
+enum CuisineType {
+  ITALIAN
+  MEXICAN
+  JAPANESE
+  THAI
+  INDIAN
+  MEDITERRANEAN
+  AMERICAN
+}
+
+enum NutritionalPreferenceLevel {
+  LOW
+  MODERATE
+  HIGH
+}
+
 model Account {
   id         String   @id @default(cuid())
   created_at DateTime @default(now())
@@ -61,8 +137,32 @@ model User {
   city          String?
   address       String?
   zip_code      String?
-  gender        String?
   date_of_birth DateTime? @db.Date
+
+  // nutrition profile
+  gender         Gender?
+  height_cm      Int?
+  weight_kg      Decimal?
+  age            Int?
+  activity_level String?
+  target_rate    Decimal?
+  budget         Int?
+  diet_goal_id   String?
+  diet_plan_id   String?
+  spice_level_id String?
+  fitness_goal_id String?
+
+  // nutritional preferences
+  carbohydrates_pref  NutritionalPreferenceLevel? @default(MODERATE)
+  sodium_pref         NutritionalPreferenceLevel? @default(MODERATE)
+  fat_pref            NutritionalPreferenceLevel? @default(MODERATE)
+  sugar_pref          NutritionalPreferenceLevel? @default(MODERATE)
+  protein_pref        NutritionalPreferenceLevel? @default(MODERATE)
+  kitchen_access      Boolean?
+  meal_schedule       Json?
+  notification_prefs  Json?
+  trial_ends_at       DateTime?
+  subscription_status String?
 
   // billing id. e.g. stripe customer id
   billing_id String?
@@ -87,6 +187,17 @@ model User {
   roles                Role[]
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
+  // nutrition relations
+  fitness_goal      FitnessGoal?       @relation(fields: [fitness_goal_id], references: [id], onDelete: SetNull)
+  diet_goal         DietGoal?          @relation(fields: [diet_goal_id], references: [id], onDelete: SetNull)
+  diet_plan         DietPlan?          @relation(fields: [diet_plan_id], references: [id], onDelete: SetNull)
+  spice_level       SpiceLevel?        @relation(fields: [spice_level_id], references: [id], onDelete: SetNull)
+  allergies         UserAllergy[]
+  cuisines          UserCuisine[]
+  menu_item_matches MenuItemMatch[]
+  meal_logs         MealLog[]
+  daily_scores      ScoreDaily[]
+  restaurant_visits LocationVisit[]
 
   @@map("users")
 }
@@ -255,15 +366,6 @@ model PaymentTransaction {
   @@map("payment_transactions")
 }
 
-// ---------Start Chat schema---------
-
-enum MessageStatus {
-  PENDING
-  SENT
-  DELIVERED
-  READ
-}
-
 // message is used for conversation
 model Message {
   id         String    @id @default(cuid())
@@ -422,6 +524,307 @@ model UserSetting {
   value String?
 
   @@map("user_settings")
+}
+
+// nutrition and meal tracking models
+model FitnessGoal {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title       String  @unique
+  description String?
+  icon        String?
+  slug         String  @unique
+  sort_order  Int?    @default(0)
+  is_active   Boolean @default(true)
+
+  users User[]
+
+  @@map("fitness_goals")
+}
+
+model DietGoal {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title       String  @unique
+  description String?
+  icon        String?
+  slug         String  @unique
+  sort_order  Int?    @default(0)
+  is_active   Boolean @default(true)
+
+  users User[]
+
+  @@map("diet_goals")
+}
+
+model DietPlan {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title       String  @unique
+  description String?
+  icon        String?
+  slug         String  @unique
+  sort_order  Int?    @default(0)
+  is_active   Boolean @default(true)
+
+  users User[]
+
+  @@map("diets")
+}
+
+model Allergy {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title       String  @unique
+  description String?
+  icon        String?
+  slug         String  @unique
+  sort_order  Int?    @default(0)
+  is_active   Boolean @default(true)
+
+  users UserAllergy[]
+
+  @@map("allergies")
+}
+
+model UserAllergy {
+  user_id    String
+  user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  allergy_id String
+  allergy    Allergy @relation(fields: [allergy_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, allergy_id])
+  @@map("user_allergies")
+}
+
+model Cuisine {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title       String  @unique
+  description String?
+  icon        String?
+  slug         String  @unique
+  sort_order  Int?    @default(0)
+  is_active   Boolean @default(true)
+
+  users UserCuisine[]
+
+  @@map("cuisines")
+}
+
+model UserCuisine {
+  user_id    String
+  user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  cuisine_id String
+  cuisine    Cuisine @relation(fields: [cuisine_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, cuisine_id])
+  @@map("user_cuisines")
+}
+
+model SpiceLevel {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title       String  @unique
+  description String?
+  icon        String?
+  slug         String  @unique
+  sort_order  Int?    @default(0)
+  is_active   Boolean @default(true)
+
+  users User[]
+
+  @@map("spice_levels")
+}
+
+
+model Restaurant {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  name       String
+  cuisine    String?
+  price_tier Int?
+  lat        Decimal?
+  lng        Decimal?
+  hours      Json?
+
+  menu_items MenuItem[]
+  visits     LocationVisit[]
+  mealLogs   MealLog[]
+
+  @@map("restaurants")
+}
+
+model MenuItem {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  name        String
+  description String?
+  cuisine     String?
+  meal_type   MealType
+  calories    Int
+  protein     Int
+  carbs       Int
+  fat         Int
+  tags        String[]
+  allergens   String[]
+  ingredients String[]
+  source      SourceType
+
+  restaurant_id String?
+  restaurant    Restaurant? @relation(fields: [restaurant_id], references: [id])
+
+  matches   MenuItemMatch[]
+  meal_logs MealLog[]
+
+  @@map("menu_items")
+}
+
+model MenuItemMatch {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  menu_item_id String
+  menu_item    MenuItem @relation(fields: [menu_item_id], references: [id], onDelete: Cascade)
+
+  match_score Int
+  reasons     Json?
+  avoid_flag  Boolean @default(false)
+
+  @@unique([user_id, menu_item_id])
+  @@map("menu_item_matches")
+}
+
+model MealLog {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  menu_item_id String?
+  menu_item    MenuItem? @relation(fields: [menu_item_id], references: [id])
+
+  custom_name  String?
+  portion_size Decimal?
+  portion_unit String?
+  meal_type    MealType
+  served_at    DateTime
+  calories     Int
+  protein      Int
+  carbs        Int
+  fat          Int
+  source       SourceType
+
+  restaurant_id String?
+  restaurant    Restaurant? @relation(fields: [restaurant_id], references: [id])
+
+  notes          String?
+  feedback       Feedback?
+  score          ScoreMeal?
+  locationVisits LocationVisit[]
+
+  @@map("meal_logs")
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  meal_log_id String  @unique
+  meal_log    MealLog @relation(fields: [meal_log_id], references: [id], onDelete: Cascade)
+
+  mood         MoodLevel?
+  energy       EnergyLevel?
+  digestion    DigestionLevel?
+  taste_rating Int?
+  notes        String?
+
+  @@map("feedbacks")
+}
+
+model ScoreMeal {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  meal_log_id String  @unique
+  meal_log    MealLog @relation(fields: [meal_log_id], references: [id], onDelete: Cascade)
+
+  total_score     Int
+  diet_compliance Int
+  calorie_balance Int
+  macro_balance   Int
+  allergen_safety Int
+  meal_timing     Int
+  food_quality    Int
+  mood_energy     Int
+
+  @@map("score_meals")
+}
+
+model ScoreDaily {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  date            DateTime
+  nai_score       Int
+  diet_compliance Int
+  calorie_balance Int
+  macro_balance   Int
+  allergen_safety Int
+  meal_timing     Int
+  food_quality    Int
+  mood_energy     Int
+  calorie_delta   Int?
+  protein_delta   Int?
+  flags           Json?
+
+  @@unique([user_id, date])
+  @@map("score_dailies")
+}
+
+model LocationVisit {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  restaurant_id String
+  restaurant    Restaurant @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+
+  visited_at  DateTime
+  meal_log_id String?
+  meal_log    MealLog? @relation(fields: [meal_log_id], references: [id])
+
+  @@map("location_visits")
 }
 
 // this table stores example
