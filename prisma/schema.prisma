@@ -140,17 +140,18 @@ model User {
   date_of_birth DateTime? @db.Date
 
   // nutrition profile
-  gender         Gender?
-  height_cm      Int?
-  weight_kg      Decimal?
-  age            Int?
-  activity_level String?
-  target_rate    Decimal?
-  budget         Int?
-  diet_goal_id   String?
-  diet_plan_id   String?
-  spice_level_id String?
+  gender          Gender?
+  height_cm       Int?
+  weight_kg       Decimal?
+  age             Int?
+  activity_level  String?
+  target_rate     Decimal?
+  budget          Int?
+  diet_goal_id    String?
+  diet_plan_id    String?
+  spice_level_id  String?
   fitness_goal_id String?
+  is_preferences_set Boolean? @default(false)
 
   // nutritional preferences
   carbohydrates_pref  NutritionalPreferenceLevel? @default(MODERATE)
@@ -163,6 +164,17 @@ model User {
   notification_prefs  Json?
   trial_ends_at       DateTime?
   subscription_status String?
+
+  // daily macro goals
+  daily_calorie_goal  Int? @default(2000)
+  daily_protein_goal  Int?
+  daily_carbs_goal    Int?
+  daily_fat_goal      Int?
+  daily_water_goal    Int? @default(2000) // in milliliters
+
+  // macro goals tracking
+  macro_goals_calculated_at    DateTime?
+  macro_goals_auto_calculated  Boolean? @default(false)
 
   // billing id. e.g. stripe customer id
   billing_id String?
@@ -188,18 +200,226 @@ model User {
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
   // nutrition relations
-  fitness_goal      FitnessGoal?       @relation(fields: [fitness_goal_id], references: [id], onDelete: SetNull)
-  diet_goal         DietGoal?          @relation(fields: [diet_goal_id], references: [id], onDelete: SetNull)
-  diet_plan         DietPlan?          @relation(fields: [diet_plan_id], references: [id], onDelete: SetNull)
-  spice_level       SpiceLevel?        @relation(fields: [spice_level_id], references: [id], onDelete: SetNull)
-  allergies         UserAllergy[]
-  cuisines          UserCuisine[]
-  menu_item_matches MenuItemMatch[]
-  meal_logs         MealLog[]
-  daily_scores      ScoreDaily[]
-  restaurant_visits LocationVisit[]
+  diet_goal            DietGoal?            @relation(fields: [diet_goal_id], references: [id], onDelete: SetNull)
+  diet_plan            DietPlan?            @relation(fields: [diet_plan_id], references: [id], onDelete: SetNull)
+  spice_level          SpiceLevel?          @relation(fields: [spice_level_id], references: [id], onDelete: SetNull)
+  allergies            UserAllergy[]
+  cuisines             UserCuisine[]
+  fitness_goal         FitnessGoal?         @relation(fields: [fitness_goal_id], references: [id], onDelete: SetNull)
+  menu_item_matches    MenuItemMatch[]
+  meal_logs            MealLog[]
+  daily_scores         ScoreDaily[]
+  restaurant_visits    LocationVisit[]
+  water_logs           WaterLog[]
 
   @@map("users")
+}
+
+model DietGoal {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title     String  @unique
+  subtitle  String?
+  is_active Boolean @default(true)
+
+  preferenceCategories DietGoalPreferenceCategory[]
+  users                User[]
+
+  @@map("diet_goals")
+}
+
+model DietGoalPreferenceCategory {
+  id           String   @id @default(cuid())
+  diet_goal_id String
+  diet_goal    DietGoal @relation(fields: [diet_goal_id], references: [id], onDelete: Cascade)
+
+  slug       String
+  icon       String
+  sort_order Int    @default(0)
+
+  @@map("diet_goal_preference_categories")
+}
+
+model DietPlan {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title     String  @unique
+  subtitle  String?
+  is_active Boolean @default(true)
+
+  preferenceCategories DietPlanPreferenceCategory[]
+  users                User[]
+
+  @@map("diets")
+}
+
+model DietPlanPreferenceCategory {
+  id           String   @id @default(cuid())
+  diet_plan_id String
+  diet_plan    DietPlan @relation(fields: [diet_plan_id], references: [id], onDelete: Cascade)
+
+  slug       String
+  icon       String
+  sort_order Int    @default(0)
+
+  @@map("diet_plan_preference_categories")
+}
+
+model Allergy {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title     String  @unique
+  subtitle  String?
+  is_active Boolean @default(true)
+
+  preferenceCategories AllergyPreferenceCategory[]
+  users                UserAllergy[]
+
+  @@map("allergies")
+}
+
+model AllergyPreferenceCategory {
+  id         String  @id @default(cuid())
+  allergy_id String
+  allergy    Allergy @relation(fields: [allergy_id], references: [id], onDelete: Cascade)
+
+  slug       String
+  icon       String
+  sort_order Int    @default(0)
+
+  @@map("allergy_preference_categories")
+}
+
+model UserAllergy {
+  user_id    String
+  user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  allergy_id String
+  allergy    Allergy @relation(fields: [allergy_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, allergy_id])
+  @@map("user_allergies")
+}
+
+model Cuisine {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title     String  @unique
+  subtitle  String?
+  is_active Boolean @default(true)
+
+  preferenceCategories CuisinePreferenceCategory[]
+  users                UserCuisine[]
+
+  @@map("cuisines")
+}
+
+model CuisinePreferenceCategory {
+  id         String  @id @default(cuid())
+  cuisine_id String
+  cuisine    Cuisine @relation(fields: [cuisine_id], references: [id], onDelete: Cascade)
+
+  slug       String
+  icon       String
+  sort_order Int    @default(0)
+
+  @@map("cuisine_preference_categories")
+}
+
+model UserCuisine {
+  user_id    String
+  user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  cuisine_id String
+  cuisine    Cuisine @relation(fields: [cuisine_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, cuisine_id])
+  @@map("user_cuisines")
+}
+
+model SpiceLevel {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title     String  @unique
+  subtitle  String?
+  is_active Boolean @default(true)
+
+  preferenceCategories SpiceLevelPreferenceCategory[]
+  users                User[]
+
+  @@map("spice_levels")
+}
+
+model SpiceLevelPreferenceCategory {
+  id             String     @id @default(cuid())
+  spice_level_id String
+  spice_level    SpiceLevel @relation(fields: [spice_level_id], references: [id], onDelete: Cascade)
+
+  slug       String
+  icon       String
+  sort_order Int    @default(0)
+
+  @@map("spice_level_preference_categories")
+}
+
+// nutrition and meal tracking models
+model FitnessGoal {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title     String  @unique
+  subtitle  String?
+  is_active Boolean @default(true)
+
+  preferenceCategories FitnessGoalPreferenceCategory[]
+  users                User[]
+
+  @@map("fitness_goals")
+}
+
+model FitnessGoalPreferenceCategory {
+  id              String      @id @default(cuid())
+  fitness_goal_id String
+  fitness_goal    FitnessGoal @relation(fields: [fitness_goal_id], references: [id], onDelete: Cascade)
+
+  slug       String
+  icon       String
+  sort_order Int    @default(0)
+
+  @@map("fitness_goal_preference_categories")
+}
+
+model HomeScreen {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title    String?
+  subtitle String?
+  file     String?
+
+  @@map("home_screens")
+}
+
+model Onboarding {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  title    String?
+  subtitle String?
+  file     String?
+
+  @@map("onboardings")
 }
 
 model Ucode {
@@ -526,130 +746,6 @@ model UserSetting {
   @@map("user_settings")
 }
 
-// nutrition and meal tracking models
-model FitnessGoal {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-
-  title       String  @unique
-  description String?
-  icon        String?
-  slug         String  @unique
-  sort_order  Int?    @default(0)
-  is_active   Boolean @default(true)
-
-  users User[]
-
-  @@map("fitness_goals")
-}
-
-model DietGoal {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-
-  title       String  @unique
-  description String?
-  icon        String?
-  slug         String  @unique
-  sort_order  Int?    @default(0)
-  is_active   Boolean @default(true)
-
-  users User[]
-
-  @@map("diet_goals")
-}
-
-model DietPlan {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-
-  title       String  @unique
-  description String?
-  icon        String?
-  slug         String  @unique
-  sort_order  Int?    @default(0)
-  is_active   Boolean @default(true)
-
-  users User[]
-
-  @@map("diets")
-}
-
-model Allergy {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-
-  title       String  @unique
-  description String?
-  icon        String?
-  slug         String  @unique
-  sort_order  Int?    @default(0)
-  is_active   Boolean @default(true)
-
-  users UserAllergy[]
-
-  @@map("allergies")
-}
-
-model UserAllergy {
-  user_id    String
-  user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  allergy_id String
-  allergy    Allergy @relation(fields: [allergy_id], references: [id], onDelete: Cascade)
-
-  @@id([user_id, allergy_id])
-  @@map("user_allergies")
-}
-
-model Cuisine {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-
-  title       String  @unique
-  description String?
-  icon        String?
-  slug         String  @unique
-  sort_order  Int?    @default(0)
-  is_active   Boolean @default(true)
-
-  users UserCuisine[]
-
-  @@map("cuisines")
-}
-
-model UserCuisine {
-  user_id    String
-  user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  cuisine_id String
-  cuisine    Cuisine @relation(fields: [cuisine_id], references: [id], onDelete: Cascade)
-
-  @@id([user_id, cuisine_id])
-  @@map("user_cuisines")
-}
-
-model SpiceLevel {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-
-  title       String  @unique
-  description String?
-  icon        String?
-  slug         String  @unique
-  sort_order  Int?    @default(0)
-  is_active   Boolean @default(true)
-
-  users User[]
-
-  @@map("spice_levels")
-}
-
-
 model Restaurant {
   id         String   @id @default(cuid())
   created_at DateTime @default(now())
@@ -825,6 +921,19 @@ model LocationVisit {
   meal_log    MealLog? @relation(fields: [meal_log_id], references: [id])
 
   @@map("location_visits")
+}
+
+model WaterLog {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  amount_ml Int      // amount in milliliters
+  logged_at DateTime
+
+  @@map("water_logs")
 }
 
 // this table stores example
